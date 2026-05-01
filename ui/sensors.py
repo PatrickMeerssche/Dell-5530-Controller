@@ -5,7 +5,18 @@ from PySide6.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QSizePo
 class SensorsPanelMixin:
     # Sensors panel and polling.
 
-    def _draw_sparkline(self, values, width=160, height=28, line_color=QColor('#66ccff')):
+    def _smooth_series(self, values, window=4):
+        if len(values) < 2:
+            return values
+        window = max(2, int(window))
+        smoothed = []
+        for i in range(len(values)):
+            start = max(0, i - window + 1)
+            chunk = values[start:i + 1]
+            smoothed.append(int(round(sum(chunk) / len(chunk))))
+        return smoothed
+
+    def _draw_sparkline(self, values, width=160, height=28, line_color=QColor('#66ccff'), show_min_max=False):
         # Allow dynamic sizing when width/height are None or zero
         if not width:
             width = 160
@@ -16,6 +27,17 @@ class SensorsPanelMixin:
         if not values:
             return pix
         painter = QPainter(pix)
+        # Subtle gridlines
+        grid_pen = QPen(QColor('#1f1f1f'))
+        grid_pen.setWidth(1)
+        painter.setPen(grid_pen)
+        for frac in (0.25, 0.5, 0.75):
+            y = int(frac * (height - 1))
+            painter.drawLine(0, y, int(width) - 1, y)
+        for frac in (0.25, 0.5, 0.75):
+            x = int(frac * (width - 1))
+            painter.drawLine(x, 0, x, int(height) - 1)
+
         pen = QPen(line_color)
         pen.setWidth(2)
         painter.setPen(pen)
@@ -32,6 +54,12 @@ class SensorsPanelMixin:
         # Draw polyline
         for i in range(len(pts) - 1):
             painter.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+
+        if show_min_max:
+            text_pen = QPen(QColor('#cfcfcf'))
+            painter.setPen(text_pen)
+            painter.drawText(4, 12, f"↑{int(mx)}°C")
+            painter.drawText(4, int(height) - 4, f"↓{int(mn)}°C")
         painter.end()
         return pix
 
@@ -43,14 +71,33 @@ class SensorsPanelMixin:
                 h = widget.height() or 28
                 return max(80, w), max(20, h)
 
+            accent = '#66ccff'
+            if hasattr(self, '_theme_color'):
+                try:
+                    accent = self._theme_color()
+                except Exception:
+                    pass
+
             w, h = size_for(self.spark_cpu)
-            self.spark_cpu.setPixmap(self._draw_sparkline(list(self.cpu_history), w, h))
+            self.spark_cpu.setPixmap(
+                self._draw_sparkline(
+                    self._smooth_series(list(self.cpu_history)),
+                    w,
+                    h,
+                    line_color=QColor(accent),
+                    show_min_max=True,
+                )
+            )
             w, h = size_for(self.spark_gpu)
-            self.spark_gpu.setPixmap(self._draw_sparkline(list(self.gpu_history), w, h))
-            w, h = size_for(self.spark_fan1)
-            self.spark_fan1.setPixmap(self._draw_sparkline(list(self.fan1_history), w, h, line_color=QColor('#ffcc66')))
-            w, h = size_for(self.spark_fan2)
-            self.spark_fan2.setPixmap(self._draw_sparkline(list(self.fan2_history), w, h, line_color=QColor('#ff66cc')))
+            self.spark_gpu.setPixmap(
+                self._draw_sparkline(
+                    self._smooth_series(list(self.gpu_history)),
+                    w,
+                    h,
+                    line_color=QColor(accent),
+                    show_min_max=True,
+                )
+            )
             self.is_resizing = False
         except Exception:
             pass
@@ -101,8 +148,8 @@ class SensorsPanelMixin:
     def _create_sensors_group(self):
         # Small panel that shows CPU/GPU temps and fan RPMs.
         group = QGroupBox("Sensors")
-        layout = QVBoxLayout()
-        layout.setSpacing(6)
+        layout = QHBoxLayout()
+        layout.setSpacing(12)
 
         # Current value labels
         self.sensor_cpu_label = QLabel("CPU Temp: N/A")
@@ -113,11 +160,25 @@ class SensorsPanelMixin:
         # Sparklines (resize with window)
         self.spark_cpu = QLabel()
         self.spark_gpu = QLabel()
-        self.spark_fan1 = QLabel()
-        self.spark_fan2 = QLabel()
-        for spark in (self.spark_cpu, self.spark_gpu, self.spark_fan1, self.spark_fan2):
-            spark.setMinimumHeight(28)
-            spark.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        for spark in (self.spark_cpu, self.spark_gpu):
+            spark.setMinimumHeight(64)
+            spark.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(8)
+        left_layout.addWidget(self.sensor_cpu_label)
+        left_layout.addWidget(self.spark_cpu)
+        left_layout.addWidget(self.sensor_gpu_label)
+        left_layout.addWidget(self.spark_gpu)
+
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
+        right_layout.addWidget(self.sensor_fan1_label)
+        right_layout.addWidget(self.sensor_fan2_label)
 
         # Auto-refresh controls
         controls_widget = QWidget()
@@ -130,16 +191,11 @@ class SensorsPanelMixin:
         # Interval is fixed at 0.5s — no user control required
         controls_hbox.addStretch(1)
 
-        # Layout items
-        layout.addWidget(self.sensor_cpu_label)
-        layout.addWidget(self.spark_cpu)
-        layout.addWidget(self.sensor_gpu_label)
-        layout.addWidget(self.spark_gpu)
-        layout.addWidget(self.sensor_fan1_label)
-        layout.addWidget(self.spark_fan1)
-        layout.addWidget(self.sensor_fan2_label)
-        layout.addWidget(self.spark_fan2)
-        layout.addWidget(controls_widget)
+        right_layout.addWidget(controls_widget)
+        right_layout.addStretch(1)
+
+        layout.addWidget(left_widget, 3)
+        layout.addWidget(right_widget, 1)
 
         # Wire controls
         self.sensors_autorefresh_checkbox.toggled.connect(self._sensors_autorefresh_changed)
@@ -197,8 +253,6 @@ class SensorsPanelMixin:
         # Append history and update sparklines/labels
         self.cpu_history.append(cpu_val)
         self.gpu_history.append(gpu_val)
-        self.fan1_history.append(fan1_val)
-        self.fan2_history.append(fan2_val)
 
         try:
             self.sensor_cpu_label.setText(f"CPU Temp: {cpu_val} °C")
@@ -206,8 +260,7 @@ class SensorsPanelMixin:
             self.sensor_fan1_label.setText(f"CPU Fan: {fan1_val} RPM")
             self.sensor_fan2_label.setText(f"GPU Fan: {fan2_val} RPM")
             # no last-update display (fixed-rate refresh)
-            self.sparkline_redraw_tick += 1
-            if not self.is_resizing and (self.sparkline_redraw_tick % 3 == 0):
+            if not self.is_resizing:
                 self._update_sparklines()
         except Exception:
             pass

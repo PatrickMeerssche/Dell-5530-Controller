@@ -46,11 +46,9 @@ class MainWindow(
         self.last_led_status = "Idle"
         self.startup_status = "Initializing..."
         self.led_service = LedService()
-        # History buffers for small sparklines (30 samples ~= 15 seconds by default)
-        self.cpu_history = deque(maxlen=30)
-        self.gpu_history = deque(maxlen=30)
-        self.fan1_history = deque(maxlen=30)
-        self.fan2_history = deque(maxlen=30)
+        # History buffers for small sparklines (120 samples ~= 60 seconds at 0.5s)
+        self.cpu_history = deque(maxlen=120)
+        self.gpu_history = deque(maxlen=120)
         self.last_sensor_values = None
         self.sparkline_redraw_tick = 0
 
@@ -80,9 +78,10 @@ class MainWindow(
         self.setMinimumWidth(760)
         self.setMinimumHeight(560)
         self.setWindowTitle("Dell G Series Controller")
-        self._apply_theme()
         # Read last choices from QSettings
         self.settings = QSettings('Dell-G15', 'Controller')
+        self.theme_name = self.settings.value("Theme", "Blue")
+        self._apply_theme()
         # Polling controls (fixed interval, toggleable)
         self.sensors_auto_refresh = self.settings.value("Sensors Auto Refresh", "True") == "True"
         # fixed interval (0.5s)
@@ -123,71 +122,90 @@ class MainWindow(
         self.setLayout(grid)
         self._refresh_diagnostics()
 
+    def _theme_color(self):
+        theme_map = {
+            "Red": "#ff4d4d",
+            "Green": "#5fd37a",
+            "Purple": "#b677ff",
+            "Pink": "#ff6fb1",
+            "Blue": "#66ccff",
+            "Yellow": "#ffd24d",
+            "Orange": "#ff9f40",
+        }
+        return theme_map.get(self.theme_name, "#66ccff")
+
+    def _set_theme(self, *_):
+        if hasattr(self, "theme_choice"):
+            self.theme_name = self.theme_choice.currentText()
+        self.settings.setValue("Theme", self.theme_name)
+        self._apply_theme()
+
     def _apply_theme(self):
+        accent = self._theme_color()
         self.setStyleSheet("""
-            QWidget {
+            QWidget {{
                 background: #000000;
                 color: #f2f2f2;
                 font-size: 12px;
-            }
-            QGroupBox {
+            }}
+            QGroupBox {{
                 border: 1px solid #f2f2f2;
                 border-radius: 12px;
                 margin-top: 14px;
                 padding: 16px 12px 12px 12px;
                 font-weight: 700;
                 background-color: #000000;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 6px;
                 color: #ffffff;
-            }
-            QComboBox, QPushButton {
+            }}
+            QComboBox, QPushButton {{
                 min-height: 30px;
                 border-radius: 8px;
                 border: 1px solid #ffffff;
                 background-color: #050505;
                 padding: 4px 10px;
-            }
-            QComboBox:hover, QPushButton:hover {
-                border-color: #66ccff;
+            }}
+            QComboBox:hover, QPushButton:hover {{
+                border-color: {accent};
                 background-color: #0f0f0f;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background-color: #111111;
-                border-color: #66ccff;
+                border-color: {accent};
                 font-weight: 600;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: #1b1b1b;
-            }
-            QSlider::groove:horizontal {
+            }}
+            QSlider::groove:horizontal {{
                 height: 8px;
                 border-radius: 4px;
                 background: #1a1a1a;
-            }
-            QSlider::sub-page:horizontal {
+            }}
+            QSlider::sub-page:horizontal {{
                 border-radius: 4px;
-                background: #66ccff;
-            }
-            QSlider::handle:horizontal {
+                background: {accent};
+            }}
+            QSlider::handle:horizontal {{
                 width: 16px;
                 margin: -5px 0;
                 border-radius: 8px;
                 background: #ffffff;
                 border: 1px solid #000000;
-            }
-            QLabel#previewLabel {
+            }}
+            QLabel#previewLabel {{
                 border: 1px solid #ffffff;
                 border-radius: 8px;
                 min-height: 30px;
                 font-weight: 600;
                 color: #000000;
                 padding: 4px 8px;
-            }
-            QLabel#colorCircle {
+            }}
+            QLabel#colorCircle {{
                 border: 2px solid #ffffff;
                 border-radius: 32px;
                 min-width: 64px;
@@ -195,8 +213,8 @@ class MainWindow(
                 min-height: 64px;
                 max-height: 64px;
                 background: #ffffff;
-            }
-        """)
+            }}
+        """.format(accent=accent))
 
     def init_acpi_call(self):
         # ACPI command IDs known to work on the targeted Dell G15 5530 firmware.

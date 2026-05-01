@@ -36,6 +36,25 @@ class PowerPanelMixin:
         self.close_behavior_choice.setCurrentText(self._get_close_behavior())
         close_behavior_hbox.addWidget(self.close_behavior_choice)
 
+        theme_widget = QWidget()
+        theme_hbox = QHBoxLayout(theme_widget)
+        theme_hbox.setContentsMargins(0, 0, 0, 0)
+        theme_hbox.setSpacing(8)
+        theme_hbox.addWidget(QLabel("Color theme"))
+        self.theme_choice = QComboBox()
+        self.theme_choice.addItems([
+            "Red",
+            "Green",
+            "Purple",
+            "Pink",
+            "Blue",
+            "Yellow",
+            "Orange",
+        ])
+        saved_theme = self.settings.value("Theme", "Blue")
+        self.theme_choice.setCurrentText(saved_theme)
+        theme_hbox.addWidget(self.theme_choice)
+
         # Fan 1 RPM
         self.fan1_label = QLabel("CPU Fan Boost")
         self.widget_fan1 = QWidget()
@@ -88,6 +107,7 @@ class PowerPanelMixin:
         vbox.addWidget(self.widget_fan2)
         vbox.addWidget(self.live_fan_checkbox)
         vbox.addWidget(close_behavior_widget)
+        vbox.addWidget(theme_widget)
         vbox.addWidget(self.info_label)
 
         # Add button callbacks
@@ -100,6 +120,7 @@ class PowerPanelMixin:
         self.fan2_boost.valueChanged.connect(self._update_fan_boost_labels)
         self.live_fan_checkbox.toggled.connect(self._set_live_fan_apply)
         self.close_behavior_choice.currentTextChanged.connect(self._set_close_behavior)
+        self.theme_choice.currentTextChanged.connect(self._set_theme)
 
         self._update_fan_boost_labels()
         self._refresh_fan_controls_visibility()
