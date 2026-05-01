@@ -9,6 +9,9 @@ from PySide6.QtWidgets import (QMessageBox, QGridLayout, QGroupBox, QWidget, QPu
                                QVBoxLayout, QHBoxLayout, QSlider, QLabel, QSystemTrayIcon, QMenu, QComboBox,
                                QCheckBox,
                                QColorDialog)
+from PySide6.QtGui import (QPixmap, QPainter, QPen, QFont)
+from PySide6.QtWidgets import QSpinBox
+from collections import deque
 
 # User-facing mode labels are also persisted in settings.
 MODE_STATIC = "Static Color"
@@ -94,6 +97,13 @@ class MainWindow(QWidget):
         self.last_led_status = "Idle"
         self.startup_status = "Initializing..."
         self.led_service = LedService()
+        # History buffers for small sparklines (60 samples ~= 60 seconds by default)
+        self.cpu_history = deque(maxlen=60)
+        self.gpu_history = deque(maxlen=60)
+        self.fan1_history = deque(maxlen=60)
+        self.fan2_history = deque(maxlen=60)
+
+        # Polling controls (persisted) - initialized after QSettings is created
 
         # Prefer a shared log file, then fallback to a per-user path if needed.
         self.logfile = None
@@ -123,6 +133,10 @@ class MainWindow(QWidget):
         self._apply_theme()
         # Read last choices from QSettings
         self.settings = QSettings('Dell-G15', 'Controller')
+        # Polling controls (persisted)
+        self.sensors_auto_refresh = self.settings.value("Sensors Auto Refresh", "True") == "True"
+        # fixed interval (0.5s) — do not persist interval
+        self.sensors_interval = 0.5
         #Create grid layout
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
@@ -152,6 +166,56 @@ class MainWindow(QWidget):
             grid.addWidget(self.diagnostics_group, 1, 0)
         self.setLayout(grid)
         self._refresh_diagnostics()
+
+
+    def _draw_sparkline(self, values, width=160, height=28, line_color=QColor('#66ccff')):
+        pix = QPixmap(width, height)
+        pix.fill(QColor('#000000'))
+        if not values:
+            return pix
+        painter = QPainter(pix)
+        pen = QPen(line_color)
+        pen.setWidth(2)
+        painter.setPen(pen)
+        # Scale values to widget height
+        mn = min(values)
+        mx = max(values)
+        rng = mx - mn if mx != mn else 1
+        pts = []
+        step = width / max(1, (len(values) - 1))
+        for i, v in enumerate(values):
+            x = int(i * step)
+            y = int((1 - (v - mn) / rng) * (height - 4)) + 2
+            pts.append((x, y))
+        # Draw polyline
+        for i in range(len(pts) - 1):
+            painter.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+        painter.end()
+        return pix
+
+    def _update_sparklines(self):
+        try:
+            self.spark_cpu.setPixmap(self._draw_sparkline(list(self.cpu_history)))
+            self.spark_gpu.setPixmap(self._draw_sparkline(list(self.gpu_history)))
+            self.spark_fan1.setPixmap(self._draw_sparkline(list(self.fan1_history), line_color=QColor('#ffcc66')))
+            self.spark_fan2.setPixmap(self._draw_sparkline(list(self.fan2_history), line_color=QColor('#ff66cc')))
+        except Exception:
+            pass
+
+    def _sensors_autorefresh_changed(self, enabled):
+        self.sensors_auto_refresh = bool(enabled)
+        self.settings.setValue("Sensors Auto Refresh", str(self.sensors_auto_refresh))
+        if hasattr(self, 'timer') and self.timer is not None:
+            if self.sensors_auto_refresh:
+                # fixed 0.5s interval
+                self.timer.setInterval(int(self.sensors_interval * 1000))
+                self.timer.start()
+            else:
+                self.timer.stop()
+
+    def _sensors_interval_changed(self, value):
+        # Interval is fixed; ignore user changes
+        return
 
     def _apply_theme(self):
         self.setStyleSheet("""
@@ -298,21 +362,50 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(6)
 
+        # Current value labels
         self.sensor_cpu_label = QLabel("CPU Temp: N/A")
         self.sensor_gpu_label = QLabel("GPU Temp: N/A")
         self.sensor_fan1_label = QLabel("CPU Fan: N/A RPM")
         self.sensor_fan2_label = QLabel("GPU Fan: N/A RPM")
 
-        for label in (
-            self.sensor_cpu_label,
-            self.sensor_gpu_label,
-            self.sensor_fan1_label,
-            self.sensor_fan2_label,
-        ):
-            label.setWordWrap(True)
-            layout.addWidget(label)
+        # Sparklines (small pixmaps)
+        self.spark_cpu = QLabel()
+        self.spark_gpu = QLabel()
+        self.spark_fan1 = QLabel()
+        self.spark_fan2 = QLabel()
+
+        # Auto-refresh controls
+        controls_widget = QWidget()
+        controls_hbox = QHBoxLayout(controls_widget)
+        controls_hbox.setContentsMargins(0, 0, 0, 0)
+        controls_hbox.setSpacing(8)
+        self.sensors_autorefresh_checkbox = QCheckBox("Auto refresh")
+        self.sensors_autorefresh_checkbox.setChecked(self.sensors_auto_refresh)
+        controls_hbox.addWidget(self.sensors_autorefresh_checkbox)
+        # Interval is fixed at 0.5s — no user control required
+        controls_hbox.addStretch(1)
+
+        # No last-updated label — keeping UI minimal per request
+        self.sensor_last_label = None
+
+        # Layout items
+        layout.addWidget(self.sensor_cpu_label)
+        layout.addWidget(self.spark_cpu)
+        layout.addWidget(self.sensor_gpu_label)
+        layout.addWidget(self.spark_gpu)
+        layout.addWidget(self.sensor_fan1_label)
+        layout.addWidget(self.spark_fan1)
+        layout.addWidget(self.sensor_fan2_label)
+        layout.addWidget(self.spark_fan2)
+        layout.addWidget(controls_widget)
+
+        # Wire controls
+        self.sensors_autorefresh_checkbox.toggled.connect(self._sensors_autorefresh_changed)
+        # interval spinbox removed; no connection
 
         group.setLayout(layout)
+        # Initialize empty sparklines
+        self._update_sparklines()
         return group
 
     def _refresh_diagnostics(self):
@@ -870,27 +963,47 @@ class MainWindow(QWidget):
         if self.isVisible():
             # Get current rpm and temp from ACPI and update both the Power/Fans
             # panel and the new Sensors panel.
-            fan1_rpm = self.acpi_call("get_fan1_rpm")
-            cpu_temp = self.acpi_call("get_cpu_temp")
-            fan2_rpm = self.acpi_call("get_fan2_rpm")
-            gpu_temp = self.acpi_call("get_gpu_temp")
-
-            # Update existing Power and Fans RPM labels
             try:
-                self.fan1_current.setText("{} RPM, {} °C".format(int(fan1_rpm, 0), int(cpu_temp, 0)))
-                self.fan2_current.setText("{} RPM, {} °C".format(int(fan2_rpm, 0), int(gpu_temp, 0)))
+                fan1_rpm = self.acpi_call("get_fan1_rpm")
+                cpu_temp = self.acpi_call("get_cpu_temp")
+                fan2_rpm = self.acpi_call("get_fan2_rpm")
+                gpu_temp = self.acpi_call("get_gpu_temp")
+            except Exception as err:
+                # ACPI call failed; record and skip this cycle
+                self.last_acpi_response = f"error: {err.__class__.__name__}"
+                self._refresh_diagnostics()
+                return
+
+            # Parse and update existing Power and Fans RPM labels
+            try:
+                cpu_val = int(cpu_temp, 0)
+                gpu_val = int(gpu_temp, 0)
+                fan1_val = int(fan1_rpm, 0)
+                fan2_val = int(fan2_rpm, 0)
             except Exception:
-                # Ignore parse/display errors for robustness
+                # Non-numeric response; ignore this cycle
+                return
+
+            try:
+                self.fan1_current.setText("{} RPM, {} °C".format(fan1_val, cpu_val))
+                self.fan2_current.setText("{} RPM, {} °C".format(fan2_val, gpu_val))
+            except Exception:
                 pass
 
-            # Update Sensors panel (created only when ACPI/root is available)
+            # Append history and update sparklines/labels
+            self.cpu_history.append(cpu_val)
+            self.gpu_history.append(gpu_val)
+            self.fan1_history.append(fan1_val)
+            self.fan2_history.append(fan2_val)
+
             try:
-                self.sensor_cpu_label.setText(f"CPU Temp: {int(cpu_temp, 0)} °C")
-                self.sensor_gpu_label.setText(f"GPU Temp: {int(gpu_temp, 0)} °C")
-                self.sensor_fan1_label.setText(f"CPU Fan: {int(fan1_rpm, 0)} RPM")
-                self.sensor_fan2_label.setText(f"GPU Fan: {int(fan2_rpm, 0)} RPM")
+                self.sensor_cpu_label.setText(f"CPU Temp: {cpu_val} °C")
+                self.sensor_gpu_label.setText(f"GPU Temp: {gpu_val} °C")
+                self.sensor_fan1_label.setText(f"CPU Fan: {fan1_val} RPM")
+                self.sensor_fan2_label.setText(f"GPU Fan: {fan2_val} RPM")
+                # no last-update display (fixed-rate refresh)
+                self._update_sparklines()
             except Exception:
-                # If sensor labels aren't present do nothing
                 pass
     # Helper Functions
     
