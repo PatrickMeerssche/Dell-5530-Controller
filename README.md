@@ -1,4 +1,4 @@
-# Dell G15 5530 Controller (Personal Fork)
+# Dell G15 5530 Controller
 
 ![App](assets/images/app.png)
 
