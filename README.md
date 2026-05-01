@@ -4,9 +4,11 @@
 
 This is a Dell G15 5530-focused Linux controller app for:
 
-- keyboard lighting (static, morph, off, brightness)
-- power profile switching
-- manual fan boost control
+- **Keyboard lighting** — static colour, morph animation, off, and brightness control
+- **Power profile switching** — toggle between balanced, performance, and quiet modes
+- **Manual fan boost** — force the fans to maximum speed when needed
+- **System tray integration** — toggle LEDs with a single click from the tray icon
+- **Diagnostics panel** — shows detected hardware, privilege state, and last applied settings
 
 This fork intentionally targets the Dell G15 5530 only.
 
@@ -31,42 +33,75 @@ https://github.com/cemkaya-mpi/Dell-G-Series-Controller
   - `pexpect`
   - `pyusb`
 
-Install dependencies (example):
+## Installation
+
+### 1. Clone the repository
 
 ```bash
-sudo modprobe acpi-call
+git clone https://github.com/PatrickMeerssche/Dell-5530-Controller.git
+cd Dell-5530-Controller
+```
+
+### 2. Install the udev rule
+
+The udev rule allows the app to access the RGB USB controller without root privileges:
+
+```bash
+sudo cp 00-aw-elc.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+### 3. Install Python dependencies
+
+```bash
 python3 -m pip install --user PySide6 pexpect pyusb
 ```
 
-## Compile and Run
+### 4. Load the `acpi-call` kernel module
 
-From project folder:
+For the current session:
 
 ```bash
-python3 -m compileall -f .
+sudo modprobe acpi-call
 ```
 
-This recreates all `__pycache__` files.
+To load it automatically at every boot, add it to the modules-load configuration:
 
-From project folder:
+```bash
+echo "acpi-call" | sudo tee /etc/modules-load.d/acpi-call.conf
+```
+
+## Running the App
+
+From the project folder:
 
 ```bash
 python3 main.py
 ```
 
-You can also launch from the desktop entry:
+> **Note:** Pre-compiling to bytecode (`python3 -m compileall -f .`) is optional and only marginally speeds up startup. It is not required to run the app.
 
-- `dell-g-series-controller.desktop`
-- launcher helper: `launch-dell-g-series-controller.sh`
+### Desktop launcher
+
+To make the app appear in your application menu, install the `.desktop` entry:
+
+```bash
+cp dell-g-series-controller.desktop ~/.local/share/applications/
+```
+
+The helper script `launch-dell-g-series-controller.sh` handles privilege elevation automatically. Before using it, **edit the `APP_DIR` variable** at the top of the script to match your actual clone location (it defaults to `/home/$USER/Dell-G-Series-Controller`).
 
 ## Optional: Passwordless Launch
 
-If you want desktop launch without password prompts, install the included sudoers rule:
+The udev rule installed in the [Installation](#installation) step already handles USB access without root. For full passwordless operation (including power profile and fan control via `acpi-call`), create a sudoers entry that allows running the app with `sudo -n`:
 
 ```bash
-sudo install -m 440 ./dell-g-series-controller.sudoers /etc/sudoers.d/dell-g-series-controller
+# Example: allow the current user to run the app without a password prompt
+echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/python3 $(pwd)/main.py" | sudo tee /etc/sudoers.d/dell-g-series-controller
 sudo visudo -cf /etc/sudoers.d/dell-g-series-controller
 ```
+
+Alternatively, ensure `pkexec` (polkit) is available — the launcher script will fall back to it automatically.
 
 ## Troubleshooting
 
@@ -84,17 +119,34 @@ If nothing appears:
 
 - ensure you are running on a supported 5530 variant
 - replug power / reboot and retry
-- verify USB permissions and udev rule (`00-aw-elc.rules`)
+- verify USB permissions and udev rule (`00-aw-elc.rules`) — see [Installation](#installation)
 
 ### App asks for privileges / power controls missing
 
 - load module: `sudo modprobe acpi-call`
-- ensure `pkexec` is available or install sudoers rule above
+- ensure `pkexec` is available or set up the sudoers entry described above
 
 ## Project Files
 
-- `main.py`: UI and runtime logic
-- `awelc.py`: high-level LED control routines
-- `elc.py`, `elc_constants.py`, `hidreport.py`: low-level USB/HID implementation
-- `dell-g-series-controller.desktop`: apps-menu launcher metadata
-- `launch-dell-g-series-controller.sh`: launcher with privilege fallback
+```
+Dell-5530-Controller/
+├── main.py                             entry point — starts the Qt app and system tray
+├── 00-aw-elc.rules                     udev rule for USB device access
+├── dell-g-series-controller.desktop    application menu launcher metadata
+├── launch-dell-g-series-controller.sh  launcher with privilege fallback
+├── core/
+│   ├── main_window.py                  main application window and UI orchestration
+│   ├── services.py                     thin service wrappers (LED, ACPI, fans)
+│   ├── tray.py                         system tray icon and click handling
+│   └── constants.py                    shared UI constants and enums
+├── hw/
+│   ├── awelc.py                        high-level LED control routines
+│   ├── elc.py                          low-level USB/HID communication
+│   ├── elc_constants.py                HID report constants
+│   └── hidreport.py                    HID report builder
+└── ui/
+    ├── led.py                          keyboard lighting panel
+    ├── power.py                        power profile panel
+    ├── sensors.py                      fan / temperature sensor panel
+    └── diagnostics.py                  diagnostics info panel
+```
