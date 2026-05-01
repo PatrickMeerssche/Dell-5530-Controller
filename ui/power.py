@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QCheckBox, QComboBox, QGroupBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
-from constants import CLOSE_BEHAVIORS
+from core.constants import CLOSE_BEHAVIORS
 
 
 class PowerPanelMixin:

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-from elc import *
-from elc_constants import *
+from .elc import *
+from .elc_constants import *
 
 
 DURATION_MAX = 0xffff

@@ -5,18 +5,18 @@ import sys
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtWidgets import QApplication, QMenu
 
-from main_window import MainWindow
-from tray import TrayIcon
+from core.main_window import MainWindow
+from core.tray import TrayIcon
 
 
 if __name__ == '__main__':
     # Create the Qt Application
     app = QApplication(sys.argv)
     app.setDesktopFileName("dell-g-series-controller")
-    icon_path = os.path.join(os.path.dirname(__file__), "alien-square.png")
+    icon_path = os.path.join(os.path.dirname(__file__), "assets", "images", "alien-square.png")
     icon = QIcon(icon_path)
     if icon.isNull():
-        icon = QIcon(os.path.join(os.path.dirname(__file__), "alien-square.ico"))
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "assets", "images", "alien-square.ico"))
     if icon.isNull():
         icon = QIcon.fromTheme("alienarena")
     app.setWindowIcon(icon)

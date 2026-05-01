@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from constants import (
+from core.constants import (
     MODE_STATIC,
     MODE_MORPH,
     MODE_OFF,
@@ -20,11 +20,11 @@ from constants import (
     CLOSE_EXIT,
     CLOSE_TRAY,
 )
-from services import LedService, AcpiService
-from ui_led import LedPanelMixin
-from ui_power import PowerPanelMixin
-from ui_sensors import SensorsPanelMixin
-from ui_diagnostics import DiagnosticsPanelMixin
+from core.services import LedService, AcpiService
+from ui.led import LedPanelMixin
+from ui.power import PowerPanelMixin
+from ui.sensors import SensorsPanelMixin
+from ui.diagnostics import DiagnosticsPanelMixin
 
 
 class MainWindow(

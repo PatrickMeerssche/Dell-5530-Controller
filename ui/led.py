@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout, QWidget, QColorDialog, QGroupBox
 
-from constants import (
+from core.constants import (
     MODE_STATIC,
     MODE_MORPH,
     MODE_OFF,

@@ -3,8 +3,8 @@
 import usb
 import sys
 import struct
-from elc_constants import *
-from hidreport import *
+from .elc_constants import *
+from .hidreport import *
 import binascii
 
 def eprint(*args, **kwargs):

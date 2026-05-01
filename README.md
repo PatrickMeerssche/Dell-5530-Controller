@@ -1,5 +1,7 @@
 # Dell G15 5530 Controller (Personal Fork)
 
+![App](assets/images/app.png)
+
 This is a Dell G15 5530-focused Linux controller app for:
 
 - keyboard lighting (static, morph, off, brightness)
