@@ -137,10 +137,13 @@ def remove_animation():
     # elc.remove_animation(RUNNING_START)
     # elc.remove_animation(RUNNING_FINISH)
     animations = elc.get_animation_count()
+    unknown_count = 0
     while animations != (0,0):
-        print("Removing unknown animation {}".format(animations[1]))
+        unknown_count += 1
         elc.remove_animation(animations[1])
         animations = elc.get_animation_count()
+    if unknown_count:
+        print("Removing unknown animation ({}x)".format(unknown_count))
     device.reset()
 
 def set_dim(level):

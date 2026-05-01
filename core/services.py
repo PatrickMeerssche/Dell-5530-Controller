@@ -20,19 +20,22 @@ class LedService:
 class AcpiService:
     # Encapsulates privileged shell communication and ACPI argument templating.
 
-    def __init__(self, shell, acpi_cmd, acpi_call_dict):
+    def __init__(self, shell, acpi_cmd, acpi_call_dict, verbose=False):
         self.shell = shell
         self.acpi_cmd = acpi_cmd
         self.acpi_call_dict = acpi_call_dict
+        self.verbose = verbose
 
     def shell_exec(self, cmd: str):
-        print("Bash: Executing {}".format(cmd))
+        if self.verbose:
+            print("Bash: Executing {}".format(cmd))
         self.shell.sendline(cmd)
         self.shell.expect("[#$] ")
         result = self.shell.before
         result = result.split('\n')
-        for line in result[1:]:
-            print(line)
+        if self.verbose:
+            for line in result[1:]:
+                print(line)
         return result
 
     def parse_shell_exec(self, line: str):

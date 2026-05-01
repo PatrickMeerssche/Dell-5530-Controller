@@ -46,30 +46,33 @@ class MainWindow(
         self.last_led_status = "Idle"
         self.startup_status = "Initializing..."
         self.led_service = LedService()
-        # History buffers for small sparklines (60 samples ~= 60 seconds by default)
-        self.cpu_history = deque(maxlen=60)
-        self.gpu_history = deque(maxlen=60)
-        self.fan1_history = deque(maxlen=60)
-        self.fan2_history = deque(maxlen=60)
+        # History buffers for small sparklines (30 samples ~= 15 seconds by default)
+        self.cpu_history = deque(maxlen=30)
+        self.gpu_history = deque(maxlen=30)
+        self.fan1_history = deque(maxlen=30)
+        self.fan2_history = deque(maxlen=30)
+        self.last_sensor_values = None
+        self.sparkline_redraw_tick = 0
 
         # Prefer a shared log file, then fallback to a per-user path if needed.
+        # Logging is opt-in to reduce disk I/O.
         self.logfile = None
-        log_candidates = [
-            "/tmp/dell-g-series-controller.log",
-            "/tmp/dell-g-series-controller-{}.log".format(os.getuid()),
-        ]
-        for log_path in log_candidates:
-            try:
-                self.logfile = open(log_path, "a", buffering=1)
-                break
-            except OSError:
-                continue
+        enable_logging = bool(os.environ.get("DGC_LOG", ""))
+        if enable_logging:
+            log_candidates = [
+                "/tmp/dell-g-series-controller.log",
+                "/tmp/dell-g-series-controller-{}.log".format(os.getuid()),
+            ]
+            for log_path in log_candidates:
+                try:
+                    self.logfile = open(log_path, "a", buffering=1)
+                    break
+                except OSError:
+                    continue
 
-        if self.logfile is not None:
-            sys.stdout = self.logfile
-            print("Log file:{}".format(self.logfile.name))
-        else:
-            print("Warning: could not open a log file under /tmp; continuing without file logging")
+            if self.logfile is not None:
+                sys.stdout = self.logfile
+                print("Log file:{}".format(self.logfile.name))
 
         # ACPI/root capability detection runs before building UI so unsupported
         # controls can be hidden on first render.
@@ -244,7 +247,7 @@ class MainWindow(
                 self._refresh_diagnostics()
                 return None
 
-        print("Attempting to create elevated bash subprocess.")
+        # Startup logging kept minimal; errors only below.
         # Create a shell subprocess (root needed for power related functions)
         try:
             self.shell = pexpect.spawn('bash', encoding='utf-8', logfile=self.logfile, env=None, args=["--noprofile", "--norc"])
@@ -274,7 +277,7 @@ class MainWindow(
         whoami = startup_shell_exec("whoami")
         self.is_root = bool(whoami and len(whoami) > 1 and whoami[1].find("root") != -1)
         if not self.is_root:
-            print("Bash shell is NOT root. Disabling ACPI methods...")
+            self._log_error("Root access denied")
             self.root_status = "Denied"
             self.acpi_status = "Unavailable"
             self.startup_status = "Root access denied"
@@ -282,11 +285,11 @@ class MainWindow(
             QMessageBox.warning(self, "Warning", "No root access. Power related functions will not work, and will not be displayed.")
             return
 
-        print("Sh shell is root. Enabling ACPI methods...")
+        # Root confirmed; keep stdout quiet unless actions/errors occur.
         self.root_status = "OK"
         self.acpi_status = "Ready"
         self.startup_status = "Root shell ready"
-        self.acpi_service = AcpiService(self.shell, self.acpi_cmd, self.acpi_call_dict)
+        self.acpi_service = AcpiService(self.shell, self.acpi_cmd, self.acpi_call_dict, verbose=False)
 
         self._check_laptop_model()
 
@@ -321,6 +324,12 @@ class MainWindow(
             self.is_supported_5530 = False
             self.model_detection_status = f"Unsupported signature {laptop_model}"
         self._refresh_diagnostics()
+
+    def _log_action(self, message):
+        print(f"Action: {message}")
+
+    def _log_error(self, message):
+        print(f"Error: {message}")
 
     def _get_close_behavior(self):
         close_behavior = self.settings.value("Close Behavior", CLOSE_EXIT)

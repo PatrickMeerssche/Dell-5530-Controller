@@ -257,11 +257,15 @@ class LedPanelMixin:
                 self.apply_morph()
             else:   # Off
                 self.remove_animation()
+            if hasattr(self, "_log_action"):
+                self._log_action(f"LED mode applied: {mode}")
             self.info_led_label.setText("Applied successfully.")
             self.last_led_status = "Apply successful"
             self._refresh_diagnostics()
             self._refresh_apply_button_state()
         except Exception as err:
+            if hasattr(self, "_log_error"):
+                self._log_error(f"LED apply failed: {err.__class__.__name__}")
             self.info_led_label.setText(f"Apply failed: {err.__class__.__name__}")
             self.last_led_status = f"Apply failed: {err.__class__.__name__}"
             self._refresh_diagnostics()
@@ -273,6 +277,10 @@ class LedPanelMixin:
         # Program effect first, then dim, so brightness remains persistent.
         self.led_service.set_static(self.static_red, self.static_green, self.static_blue)
         self._apply_brightness()
+        if hasattr(self, "_log_action"):
+            self._log_action(
+                f"Static color set: R{self.static_red} G{self.static_green} B{self.static_blue}, brightness {self.brightness_choice.currentText()}"
+            )
         self.settings.setValue("Last Action", MODE_STATIC)
         self.settings.setValue("Action", MODE_STATIC)
         self.settings.setValue("Red Static", self.static_red)
@@ -289,6 +297,10 @@ class LedPanelMixin:
         red_morph, green_morph, blue_morph = self._get_morph_rgb()
         self.led_service.set_morph(red_morph, green_morph, blue_morph, self.duration.value())
         self._apply_brightness()
+        if hasattr(self, "_log_action"):
+            self._log_action(
+                f"Morph set: duration {self.duration.value()}, brightness {self.brightness_choice.currentText()}"
+            )
         self.settings.setValue("Last Action", MODE_MORPH)
         self.settings.setValue("Action", MODE_MORPH)
         self.settings.setValue("Red Morph", red_morph)
@@ -304,11 +316,15 @@ class LedPanelMixin:
         try:
             self.led_service.remove_animation()
             self.last_led_status = "LED animation removed"
+            if hasattr(self, "_log_action"):
+                self._log_action("LEDs turned off")
         except Exception as err:
             # Treat missing hardware as already-off when user requests Off.
             if self._is_device_missing_error(err):
                 self.last_led_status = "LED device not found; treated as off"
             else:
+                if hasattr(self, "_log_error"):
+                    self._log_error(f"LED off failed: {err.__class__.__name__}")
                 raise
         self.settings.setValue("Action", MODE_OFF)
         self.settings.setValue("State", "Off")

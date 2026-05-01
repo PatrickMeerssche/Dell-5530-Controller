@@ -115,6 +115,8 @@ class PowerPanelMixin:
         self.settings.setValue("Power", self.combobox_mode_power.currentText())
         choice = self.settings.value("Power", "USTT_Balanced")
         message = ""
+        if hasattr(self, "_log_action"):
+            self._log_action(f"Power mode selected: {choice}")
 
         # Set power mode
         mode = self.power_modes_dict[choice]
@@ -185,6 +187,8 @@ class PowerPanelMixin:
                 int(fan1_new_boost, 0) / 0xff * 100,
             )
         )
+        if hasattr(self, "_log_action"):
+            self._log_action(f"CPU fan boost set: {int(fan1_new_boost, 0) / 0xff * 100:.0f}%")
         self._refresh_diagnostics()
 
     def slider_fan2(self):
@@ -207,4 +211,6 @@ class PowerPanelMixin:
                 int(fan2_new_boost, 0) / 0xff * 100,
             )
         )
+        if hasattr(self, "_log_action"):
+            self._log_action(f"GPU fan boost set: {int(fan2_new_boost, 0) / 0xff * 100:.0f}%")
         self._refresh_diagnostics()

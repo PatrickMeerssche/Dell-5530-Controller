@@ -188,6 +188,12 @@ class SensorsPanelMixin:
         except Exception:
             pass
 
+        current_values = (cpu_val, gpu_val, fan1_val, fan2_val)
+        if current_values == self.last_sensor_values:
+            # No change; skip history and redraw to reduce churn
+            return
+        self.last_sensor_values = current_values
+
         # Append history and update sparklines/labels
         self.cpu_history.append(cpu_val)
         self.gpu_history.append(gpu_val)
@@ -200,7 +206,8 @@ class SensorsPanelMixin:
             self.sensor_fan1_label.setText(f"CPU Fan: {fan1_val} RPM")
             self.sensor_fan2_label.setText(f"GPU Fan: {fan2_val} RPM")
             # no last-update display (fixed-rate refresh)
-            if not self.is_resizing:
+            self.sparkline_redraw_tick += 1
+            if not self.is_resizing and (self.sparkline_redraw_tick % 3 == 0):
                 self._update_sparklines()
         except Exception:
             pass
