@@ -135,15 +135,21 @@ class MainWindow(QWidget):
             grid.addWidget(self._create_second_exclusive_group(), 0, 1)
             grid.setColumnStretch(0, 1)
             grid.setColumnStretch(1, 1)
-            self.timer = QTimer(self)    #timer to update fan rpm values
+            self.timer = QTimer(self)    # timer to update fan rpm values
             self.timer.setInterval(1000)
             self.timer.timeout.connect(self.get_rpm_and_temp)
             self.timer.start()
+
+            # When ACPI is available we show two bottom panels: Diagnostics and Sensors
+            self.diagnostics_group = self._create_diagnostics_group()
+            grid.addWidget(self.diagnostics_group, 1, 0)
+            self.sensors_group = self._create_sensors_group()
+            grid.addWidget(self.sensors_group, 1, 1)
         else:
             grid.setColumnStretch(0, 1)
-
-        self.diagnostics_group = self._create_diagnostics_group()
-        grid.addWidget(self.diagnostics_group, 1, 0, 1, 2)
+            # Only show diagnostics when ACPI/root is unavailable
+            self.diagnostics_group = self._create_diagnostics_group()
+            grid.addWidget(self.diagnostics_group, 1, 0)
         self.setLayout(grid)
         self._refresh_diagnostics()
 
@@ -282,6 +288,30 @@ class MainWindow(QWidget):
         ):
             label.setWordWrap(True)
             layout.addWidget(label)
+        group.setLayout(layout)
+        return group
+
+
+    def _create_sensors_group(self):
+        # Small panel that shows CPU/GPU temps and fan RPMs.
+        group = QGroupBox("Sensors")
+        layout = QVBoxLayout()
+        layout.setSpacing(6)
+
+        self.sensor_cpu_label = QLabel("CPU Temp: N/A")
+        self.sensor_gpu_label = QLabel("GPU Temp: N/A")
+        self.sensor_fan1_label = QLabel("CPU Fan: N/A RPM")
+        self.sensor_fan2_label = QLabel("GPU Fan: N/A RPM")
+
+        for label in (
+            self.sensor_cpu_label,
+            self.sensor_gpu_label,
+            self.sensor_fan1_label,
+            self.sensor_fan2_label,
+        ):
+            label.setWordWrap(True)
+            layout.addWidget(label)
+
         group.setLayout(layout)
         return group
 
@@ -838,13 +868,30 @@ class MainWindow(QWidget):
 
     def get_rpm_and_temp(self):
         if self.isVisible():
-            #Get current rpm and temp
+            # Get current rpm and temp from ACPI and update both the Power/Fans
+            # panel and the new Sensors panel.
             fan1_rpm = self.acpi_call("get_fan1_rpm")
             cpu_temp = self.acpi_call("get_cpu_temp")
             fan2_rpm = self.acpi_call("get_fan2_rpm")
             gpu_temp = self.acpi_call("get_gpu_temp")
-            self.fan1_current.setText("{} RPM, {} °C".format(int(fan1_rpm,0),int(cpu_temp,0)))
-            self.fan2_current.setText("{} RPM, {} °C".format(int(fan2_rpm,0),int(gpu_temp,0)))
+
+            # Update existing Power and Fans RPM labels
+            try:
+                self.fan1_current.setText("{} RPM, {} °C".format(int(fan1_rpm, 0), int(cpu_temp, 0)))
+                self.fan2_current.setText("{} RPM, {} °C".format(int(fan2_rpm, 0), int(gpu_temp, 0)))
+            except Exception:
+                # Ignore parse/display errors for robustness
+                pass
+
+            # Update Sensors panel (created only when ACPI/root is available)
+            try:
+                self.sensor_cpu_label.setText(f"CPU Temp: {int(cpu_temp, 0)} °C")
+                self.sensor_gpu_label.setText(f"GPU Temp: {int(gpu_temp, 0)} °C")
+                self.sensor_fan1_label.setText(f"CPU Fan: {int(fan1_rpm, 0)} RPM")
+                self.sensor_fan2_label.setText(f"GPU Fan: {int(fan2_rpm, 0)} RPM")
+            except Exception:
+                # If sensor labels aren't present do nothing
+                pass
     # Helper Functions
     
     #Execute given command in elevated shell
