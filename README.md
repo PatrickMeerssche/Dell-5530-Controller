@@ -17,6 +17,11 @@ This fork intentionally targets the Dell G15 5530 only.
 - desktop launcher and tray integration
 - brightness handling tuned to persist correctly after mode changes
 
+## Credits
+
+Original project by cemkaya-mpi:
+https://github.com/cemkaya-mpi/Dell-G-Series-Controller
+
 ## Requirements
 
 - Python 3
