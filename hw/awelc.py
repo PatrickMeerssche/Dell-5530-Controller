@@ -150,3 +150,16 @@ def set_dim(level):
     elc, device = init_device()
     elc.dim(ZONES,level)
     device.reset()
+
+
+def get_version():
+    elc, device = init_device()
+    version = elc.get_version()
+    device.reset()
+    return version
+
+def get_platform():
+    elc, device = init_device()
+    platform = elc.get_platform()
+    device.reset()
+    return platform

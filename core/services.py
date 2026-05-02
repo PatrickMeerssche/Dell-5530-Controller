@@ -1,4 +1,5 @@
 from hw import awelc
+from hw.elc_constants import COLOR, MORPH
 
 
 class LedService:
@@ -15,6 +16,13 @@ class LedService:
 
     def set_dim(self, level):
         awelc.set_dim(level)
+
+    def get_version(self):
+        return awelc.get_version()
+
+    def get_platform(self):
+        return awelc.get_platform()
+
 
 
 class AcpiService:

@@ -17,8 +17,6 @@ if __name__ == '__main__':
     icon = QIcon(icon_path)
     if icon.isNull():
         icon = QIcon(os.path.join(os.path.dirname(__file__), "assets", "images", "alien-square.ico"))
-    if icon.isNull():
-        icon = QIcon.fromTheme("alienarena")
     app.setWindowIcon(icon)
     app.setQuitOnLastWindowClosed(False)
 

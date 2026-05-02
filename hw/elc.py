@@ -122,7 +122,7 @@ class Elc:
 		else:
 			command=POWER_ANIMATION
 		command=format(command,'02x')
-		reply=self.run_command(self.device,command+format(SET_DEFAULT,'04x')+format(animation,"04x"))
+		reply=self.run_command(self.device,command+format(SET_STARTUP,'04x')+format(animation,"04x"))
 		if (self.debug==1): eprint(binascii.hexlify(reply))
 		return reply
 
@@ -160,7 +160,10 @@ class Elc:
 		return reply
 
 	def reset(self):
-		raise Exception("Not implemented in this code at this time")
+		fragment=format(RESET,'02x')
+		reply=self.run_command(self.device,fragment)
+		if (self.debug==1): eprint(binascii.hexlify(reply))
+		return reply
 
 	def spi_flash(self):
 		raise Exception("Not implemented in this code at this time")

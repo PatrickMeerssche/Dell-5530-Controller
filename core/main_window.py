@@ -8,7 +8,9 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
     QGridLayout,
+    QLabel,
     QMessageBox,
+    QTabWidget,
     QWidget,
 )
 
@@ -44,6 +46,7 @@ class MainWindow(
         self.acpi_status = "Unknown"
         self.last_acpi_response = "None"
         self.last_led_status = "Idle"
+        self.led_version = "Unknown"
         self.startup_status = "Initializing..."
         self.led_service = LedService()
         # History buffers for small sparklines (120 samples ~= 60 seconds at 0.5s)
@@ -98,11 +101,20 @@ class MainWindow(
         self.sparkline_resize_timer.setSingleShot(True)
         self.sparkline_resize_timer.setInterval(250)
         self.sparkline_resize_timer.timeout.connect(self._update_sparklines)
-        grid.addWidget(self._create_first_exclusive_group(), 0, 0)
+        self.top_tabs = QTabWidget()
+        self.top_tabs.addTab(self._create_first_exclusive_group(), "Keyboard Led")
         if (self.is_root and self.is_supported_5530):
-            grid.addWidget(self._create_second_exclusive_group(), 0, 1)
-            grid.setColumnStretch(0, 1)
-            grid.setColumnStretch(1, 1)
+            self.top_tabs.addTab(self._create_second_exclusive_group(), "Power and Fans")
+        else:
+            power_tab = self._create_power_unavailable_group()
+            power_index = self.top_tabs.addTab(power_tab, "Power and Fans")
+            self.top_tabs.setTabEnabled(power_index, False)
+
+        grid.addWidget(self.top_tabs, 0, 0, 1, 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+
+        if (self.is_root and self.is_supported_5530):
             self.timer = QTimer(self)    # timer to update fan rpm values
             self.timer.setInterval(int(self.sensors_interval * 1000))
             self.timer.timeout.connect(self.get_rpm_and_temp)
@@ -120,19 +132,36 @@ class MainWindow(
             self.diagnostics_group = self._create_diagnostics_group()
             grid.addWidget(self.diagnostics_group, 1, 0)
         self.setLayout(grid)
+        self._refresh_led_diagnostics()
         self._refresh_diagnostics()
+
+    def _create_power_unavailable_group(self):
+        group = QWidget()
+        layout = QGridLayout(group)
+        layout.setContentsMargins(12, 12, 12, 12)
+        message = QLabel("Power and fan controls require root access on a supported Dell G15 5530 model.")
+        message.setWordWrap(True)
+        layout.addWidget(message, 0, 0)
+        return group
+
+    def _refresh_led_diagnostics(self):
+        try:
+            version = self.led_service.get_version()
+            self.led_version = f"{version[0]}.{version[1]}.{version[2]}"
+        except Exception:
+            self.led_version = "Unavailable"
 
     def _theme_color(self):
         theme_map = {
-            "Red": "#ff4d4d",
-            "Green": "#5fd37a",
-            "Purple": "#b677ff",
-            "Pink": "#ff6fb1",
-            "Blue": "#66ccff",
+            "Red": "#ff4b4b",
+            "Green": "#4bb664",
+            "Purple": "#6200ff",
+            "Pink": "#fc3c92",
+            "Blue": "#00aaff",
             "Yellow": "#ffd24d",
-            "Orange": "#ff9f40",
+            "Orange": "#ff6600",
         }
-        return theme_map.get(self.theme_name, "#66ccff")
+        return theme_map.get(self.theme_name, "#00aaff")
 
     def _set_theme(self, *_):
         if hasattr(self, "theme_choice"):
