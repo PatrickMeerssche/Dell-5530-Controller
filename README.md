@@ -35,6 +35,7 @@ https://github.com/cemkaya-mpi/Dell-G-Series-Controller
   - `PySide6`
   - `pexpect`
   - `pyusb`
+  - `pynvml` (optional, NVIDIA GPU power readings)
 
 ## Installation
 
@@ -57,7 +58,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ### 3. Install Python dependencies
 
 ```bash
-python3 -m pip install --user PySide6 pexpect pyusb
+python3 -m pip install --user PySide6 pexpect pyusb pynvml
 ```
 
 ### 4. Load the `acpi-call` kernel module

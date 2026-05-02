@@ -1,9 +1,154 @@
+import os
+import shutil
+import subprocess
+import time
+
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+
+try:
+    import pynvml
+    _HAS_PYNVML = True
+except Exception:
+    _HAS_PYNVML = False
 
 
 class SensorsPanelMixin:
     # Sensors panel and polling.
+
+    def _find_hwmon_power_path(self, name_keys):
+        base = "/sys/class/hwmon"
+        if not os.path.isdir(base):
+            return None
+        for hwmon in sorted(os.listdir(base)):
+            name_path = os.path.join(base, hwmon, "name")
+            try:
+                with open(name_path, "r", encoding="utf-8") as handle:
+                    name = handle.read().strip().lower()
+            except OSError:
+                continue
+            if not any(key in name for key in name_keys):
+                continue
+            for candidate in ("power1_average", "power1_input"):
+                power_path = os.path.join(base, hwmon, candidate)
+                if os.path.isfile(power_path):
+                    return power_path
+        return None
+
+    def _init_power_sources(self):
+        if hasattr(self, "_power_sources_ready") and self._power_sources_ready:
+            return
+
+        self._power_sources_ready = True
+        self._cpu_energy_path = None
+        self._cpu_power_path = None
+        self._gpu_power_path = None
+        self._cpu_energy_last_uj = None
+        self._cpu_energy_last_ts = None
+        self._nvidia_smi_path = None
+        self._gpu_power_last_w = None
+        self._gpu_power_last_ts = 0.0
+        self._nvml_ready = False
+        self._nvml_handle = None
+
+        # Prefer Intel RAPL energy (derived watts) for minimal overhead.
+        rapl_base = "/sys/class/powercap"
+        if os.path.isdir(rapl_base):
+            for entry in sorted(os.listdir(rapl_base)):
+                if not entry.startswith("intel-rapl:"):
+                    continue
+                energy_path = os.path.join(rapl_base, entry, "energy_uj")
+                if os.path.isfile(energy_path):
+                    self._cpu_energy_path = energy_path
+                    break
+
+        if self._cpu_energy_path is None:
+            self._cpu_power_path = self._find_hwmon_power_path(("coretemp", "k10temp", "cpu"))
+
+        # Prefer NVIDIA hwmon for discrete GPU power, fall back to other GPU drivers.
+        self._gpu_power_path = self._find_hwmon_power_path(("nvidia", "amdgpu", "i915", "xe", "intel_gpu"))
+        if self._gpu_power_path is None and _HAS_PYNVML:
+            try:
+                pynvml.nvmlInit()
+                if pynvml.nvmlDeviceGetCount() > 0:
+                    self._nvml_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                    self._nvml_ready = True
+            except Exception:
+                self._nvml_ready = False
+                self._nvml_handle = None
+        if self._gpu_power_path is None and not self._nvml_ready:
+            self._nvidia_smi_path = shutil.which("nvidia-smi")
+
+    def _read_hwmon_power_watts(self, path):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                value = int(handle.read().strip())
+            return value / 1_000_000.0
+        except Exception:
+            return None
+
+    def _read_cpu_power_watts(self):
+        if self._cpu_energy_path:
+            try:
+                with open(self._cpu_energy_path, "r", encoding="utf-8") as handle:
+                    energy_uj = int(handle.read().strip())
+            except Exception:
+                return None
+            now = time.monotonic()
+            if self._cpu_energy_last_uj is None:
+                self._cpu_energy_last_uj = energy_uj
+                self._cpu_energy_last_ts = now
+                return None
+            delta_uj = energy_uj - self._cpu_energy_last_uj
+            delta_s = now - (self._cpu_energy_last_ts or now)
+            self._cpu_energy_last_uj = energy_uj
+            self._cpu_energy_last_ts = now
+            if delta_uj <= 0 or delta_s <= 0:
+                return None
+            return (delta_uj / delta_s) / 1_000_000.0
+
+        if self._cpu_power_path:
+            return self._read_hwmon_power_watts(self._cpu_power_path)
+        return None
+
+    def _read_gpu_power_watts(self):
+        if self._gpu_power_path:
+            return self._read_hwmon_power_watts(self._gpu_power_path)
+        if self._nvml_ready and self._nvml_handle is not None:
+            try:
+                power_mw = pynvml.nvmlDeviceGetPowerUsage(self._nvml_handle)
+                return power_mw / 1000.0
+            except Exception:
+                self._nvml_ready = False
+        if self._nvidia_smi_path:
+            now = time.monotonic()
+            # Rate-limit to keep overhead low.
+            if (now - self._gpu_power_last_ts) < 1.0:
+                return self._gpu_power_last_w
+            try:
+                result = subprocess.run(
+                    [
+                        self._nvidia_smi_path,
+                        "--query-gpu=power.draw",
+                        "--format=csv,noheader,nounits",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=0.5,
+                )
+                if result.returncode == 0:
+                    line = result.stdout.strip().splitlines()[0].strip()
+                    self._gpu_power_last_w = float(line)
+                    self._gpu_power_last_ts = now
+                    return self._gpu_power_last_w
+            except Exception:
+                return self._gpu_power_last_w
+        return None
+
+    def _format_watts(self, value):
+        if value is None:
+            return "N/A"
+        return f"{value:.1f} W"
 
     def _smooth_series(self, values, window=4):
         if len(values) < 2:
@@ -155,7 +300,9 @@ class SensorsPanelMixin:
         self.sensor_cpu_label = QLabel("CPU Temp: N/A")
         self.sensor_gpu_label = QLabel("GPU Temp: N/A")
         self.sensor_fan1_label = QLabel("CPU Fan: N/A RPM")
+        self.sensor_cpu_watts_label = QLabel("CPU Watts: N/A")
         self.sensor_fan2_label = QLabel("GPU Fan: N/A RPM")
+        self.sensor_gpu_watts_label = QLabel("GPU Watts: N/A")
 
         # Sparklines (resize with window)
         self.spark_cpu = QLabel()
@@ -178,7 +325,9 @@ class SensorsPanelMixin:
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
         right_layout.addWidget(self.sensor_fan1_label)
+        right_layout.addWidget(self.sensor_cpu_watts_label)
         right_layout.addWidget(self.sensor_fan2_label)
+        right_layout.addWidget(self.sensor_gpu_watts_label)
 
         # Auto-refresh controls
         controls_widget = QWidget()
@@ -214,6 +363,7 @@ class SensorsPanelMixin:
         # Only poll when auto-refresh is enabled, window is visible, and sensors panel is visible.
         if not (self.sensors_auto_refresh and self.isVisible() and hasattr(self, 'sensors_group') and self.sensors_group.isVisible()):
             return
+        self._init_power_sources()
         # Proceed with polling
         # Get current rpm and temp from ACPI and update both the Power/Fans
         # panel and the new Sensors panel.
@@ -259,6 +409,8 @@ class SensorsPanelMixin:
             self.sensor_gpu_label.setText(f"GPU Temp: {gpu_val} °C")
             self.sensor_fan1_label.setText(f"CPU Fan: {fan1_val} RPM")
             self.sensor_fan2_label.setText(f"GPU Fan: {fan2_val} RPM")
+            self.sensor_cpu_watts_label.setText(f"CPU Watts: {self._format_watts(self._read_cpu_power_watts())}")
+            self.sensor_gpu_watts_label.setText(f"GPU Watts: {self._format_watts(self._read_gpu_power_watts())}")
             # no last-update display (fixed-rate refresh)
             if not self.is_resizing:
                 self._update_sparklines()
