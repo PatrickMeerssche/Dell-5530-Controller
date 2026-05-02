@@ -300,9 +300,9 @@ class SensorsPanelMixin:
         self.sensor_cpu_label = QLabel("CPU Temp: N/A")
         self.sensor_gpu_label = QLabel("GPU Temp: N/A")
         self.sensor_fan1_label = QLabel("CPU Fan: N/A RPM")
-        self.sensor_cpu_watts_label = QLabel("CPU Watts: N/A")
+        self.sensor_cpu_watts_label = QLabel("CPU Power: N/A")
         self.sensor_fan2_label = QLabel("GPU Fan: N/A RPM")
-        self.sensor_gpu_watts_label = QLabel("GPU Watts: N/A")
+        self.sensor_gpu_watts_label = QLabel("GPU Power: N/A")
 
         # Sparklines (resize with window)
         self.spark_cpu = QLabel()
