@@ -160,7 +160,7 @@ class LedPanelMixin:
 
     def _create_first_exclusive_group(self):
         # Keyboard LED controls are always shown, even without root privileges.
-        groupBox = QGroupBox("Keyboard Led")
+        groupBox = QGroupBox("")
         vbox = QVBoxLayout()
         vbox.setSpacing(8)
         if self.is_keyboard_supported:

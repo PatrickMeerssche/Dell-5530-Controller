@@ -9,7 +9,7 @@ class PowerPanelMixin:
 
     def _create_second_exclusive_group(self):
         # Power/fan controls require root and a supported model.
-        groupBox = QGroupBox("Power and Fans")
+        groupBox = QGroupBox("")
         vbox = QVBoxLayout()
         vbox.setSpacing(10)
 

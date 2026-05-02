@@ -80,7 +80,7 @@ class MainWindow(
         self.init_acpi_call()
         self.setMinimumWidth(760)
         self.setMinimumHeight(560)
-        self.setWindowTitle("Dell G Series Controller")
+        self.setWindowTitle("Dell G15 5530 Controller")
         # Read last choices from QSettings
         self.settings = QSettings('Dell-G15', 'Controller')
         self.theme_name = self.settings.value("Theme", "Blue")

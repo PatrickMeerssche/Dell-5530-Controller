@@ -1,6 +1,8 @@
 # Dell G15 5530 Controller
 
-![App](assets/images/app.png)
+|         Keyboard Led         | Power and Fans               |
+| :--------------------------: | ---------------------------- |
+| ![App](assets/images/app1.png) | ![App](assets/images/app2.png) |
 
 This is a **Dell G15 5530**-focused **Linux** controller app for:
 
@@ -10,7 +12,7 @@ This is a **Dell G15 5530**-focused **Linux** controller app for:
 - **System tray integration** — toggle LEDs with a single click from the tray icon
 - **Diagnostics panel** — shows detected hardware, privilege state, and last applied settings
 
-This fork intentionally targets the **Dell G15 5530** only. 
+This fork intentionally targets the **Dell G15 5530** only.
 (May add support to other Dell G and Alienware models if needed as the original git)
 
 ## What Is Different From Upstream
