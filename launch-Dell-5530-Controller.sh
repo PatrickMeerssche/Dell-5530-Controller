@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-APP_DIR="/home/$USER/Dell-G-Series-Controller"
+APP_DIR="/home/$USER/Dell-5530-Controller"
 PYTHON_BIN="/usr/bin/python3"
 MAIN_FILE="$APP_DIR/main.py"
 

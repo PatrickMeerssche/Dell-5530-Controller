@@ -2,7 +2,7 @@
 
 ![App](assets/images/app.png)
 
-This is a Dell G15 5530-focused Linux controller app for:
+This is a **Dell G15 5530**-focused **Linux** controller app for:
 
 - **Keyboard lighting** — static colour, morph animation, off, and brightness control
 - **Power profile switching** — toggle between balanced, performance, and quiet modes
@@ -10,7 +10,8 @@ This is a Dell G15 5530-focused Linux controller app for:
 - **System tray integration** — toggle LEDs with a single click from the tray icon
 - **Diagnostics panel** — shows detected hardware, privilege state, and last applied settings
 
-This fork intentionally targets the Dell G15 5530 only.
+This fork intentionally targets the **Dell G15 5530** only. 
+(May add support to other Dell G and Alienware models if needed as the original git)
 
 ## What Is Different From Upstream
 
@@ -86,10 +87,10 @@ python3 main.py
 To make the app appear in your application menu, install the `.desktop` entry:
 
 ```bash
-cp dell-g-series-controller.desktop ~/.local/share/applications/
+cp Dell-5530-Controller.desktop ~/.local/share/applications/
 ```
 
-The helper script `launch-dell-g-series-controller.sh` handles privilege elevation automatically. Before using it, **edit the `APP_DIR` variable** at the top of the script to match your actual clone location (it defaults to `/home/$USER/Dell-G-Series-Controller`).
+The helper script `launch-Dell-5530-Controller.sh` handles privilege elevation automatically. Before using it, **edit the `APP_DIR` variable** at the top of the script to match your actual clone location (it defaults to `/home/$USER/Dell-5530-Controller`).
 
 ## Optional: Passwordless Launch
 
@@ -97,8 +98,8 @@ The udev rule installed in the [Installation](#installation) step already handle
 
 ```bash
 # Example: allow the current user to run the app without a password prompt
-echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/python3 $(pwd)/main.py" | sudo tee /etc/sudoers.d/dell-g-series-controller
-sudo visudo -cf /etc/sudoers.d/dell-g-series-controller
+echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/python3 $(pwd)/main.py" | sudo tee /etc/sudoers.d/Dell-5530-Controller
+sudo visudo -cf /etc/sudoers.d/Dell-5530-Controller
 ```
 
 Alternatively, ensure `pkexec` (polkit) is available — the launcher script will fall back to it automatically.
@@ -132,8 +133,8 @@ If nothing appears:
 Dell-5530-Controller/
 ├── main.py                             entry point — starts the Qt app and system tray
 ├── 00-aw-elc.rules                     udev rule for USB device access
-├── dell-g-series-controller.desktop    application menu launcher metadata
-├── launch-dell-g-series-controller.sh  launcher with privilege fallback
+├── Dell-5530-Controller.desktop    application menu launcher metadata
+├── launch-Dell-5530-Controller.sh  launcher with privilege fallback
 ├── core/
 │   ├── main_window.py                  main application window and UI orchestration
 │   ├── services.py                     thin service wrappers (LED, ACPI, fans)
